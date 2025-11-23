@@ -6,7 +6,7 @@ public final class PlainTextTheme: EditorTheme {
     public let backgroundColor: UIColor = .white
     public let userInterfaceStyle: UIUserInterfaceStyle = .light
 
-    public let font: UIFont = .monospacedSystemFont(ofSize: 14, weight: .regular)
+    public var font: UIFont = .monospacedSystemFont(ofSize: 14, weight: .regular)
     public let textColor: UIColor = .black
 
     public let gutterBackgroundColor: UIColor = .white
@@ -39,5 +39,9 @@ public final class PlainTextTheme: EditorTheme {
         } else {
             return []
         }
+    }
+    
+    public init(size: CGFloat) {
+        font = .monospacedSystemFont(ofSize: size, weight: .regular)
     }
 }

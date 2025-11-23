@@ -6,7 +6,7 @@ public final class TomorrowTheme: EditorTheme {
     public let backgroundColor = UIColor(namedInModule: "TomorrowBackground")
     public let userInterfaceStyle: UIUserInterfaceStyle = .light
 
-    public let font: UIFont = .monospacedSystemFont(ofSize: 14, weight: .regular)
+    public var font: UIFont = .monospacedSystemFont(ofSize: 14, weight: .regular)
     public let textColor = UIColor(namedInModule: "TomorrowForeground")
 
     public let gutterBackgroundColor = UIColor(namedInModule: "TomorrowCurrentLine")
@@ -59,6 +59,10 @@ public final class TomorrowTheme: EditorTheme {
         } else {
             return []
         }
+    }
+    
+    public init(size: CGFloat) {
+        font = .monospacedSystemFont(ofSize: size, weight: .regular)
     }
 }
 

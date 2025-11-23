@@ -6,7 +6,7 @@ public final class OneDarkTheme: EditorTheme {
     public let backgroundColor = UIColor(namedInModule: "OneDarkBackground")
     public let userInterfaceStyle: UIUserInterfaceStyle = .dark
 
-    public let font: UIFont = .monospacedSystemFont(ofSize: 14, weight: .regular)
+    public var font: UIFont = .monospacedSystemFont(ofSize: 14, weight: .regular)
     public let textColor = UIColor(namedInModule: "OneDarkForeground")
 
     public let gutterBackgroundColor = UIColor(namedInModule: "OneDarkCurrentLine")
@@ -59,6 +59,10 @@ public final class OneDarkTheme: EditorTheme {
         } else {
             return []
         }
+    }
+    
+    public init(size: CGFloat) {
+        font = .monospacedSystemFont(ofSize: size, weight: .regular)
     }
 }
 
