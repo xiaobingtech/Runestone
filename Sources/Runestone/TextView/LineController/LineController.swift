@@ -14,6 +14,7 @@ final class LineController {
     private enum TypesetAmount {
         case inRect(CGRect)
         case toLocation(Int)
+        case toLineFragmentIndex(Int)
     }
 
     weak var delegate: LineControllerDelegate?
@@ -21,23 +22,33 @@ final class LineController {
     var lineFragmentHeightMultiplier: CGFloat = 1 {
         didSet {
             if lineFragmentHeightMultiplier != oldValue {
+                invalidateLayout()
                 typesetter.lineFragmentHeightMultiplier = lineFragmentHeightMultiplier
             }
         }
     }
-    var theme: Theme = DefaultTheme() {
+    var theme: Theme = DefaultTheme.shared {
         didSet {
-            syntaxHighlighter?.theme = theme
+            invalidateSyntaxHighlighting()
+            cachedSyntaxHighlighter?.theme = theme
             applyThemeToAllLineFragmentControllers()
         }
     }
     var estimatedLineFragmentHeight: CGFloat = 15
-    var tabWidth: CGFloat = 10
+    var tabWidth: CGFloat = 10 {
+        didSet {
+            if tabWidth != oldValue {
+                invalidateLayout()
+                isLayoutAttributesInvalid = true
+            }
+        }
+    }
     var constrainingWidth: CGFloat {
         get {
             typesetter.constrainingWidth
         }
         set {
+            if typesetter.constrainingWidth != newValue { invalidateLayout() }
             typesetter.constrainingWidth = newValue
         }
     }
@@ -52,7 +63,8 @@ final class LineController {
             _lineHeight = lineHeight
             return lineHeight
         } else {
-            let knownLineFragmentHeight = typesetter.lineFragments.reduce(0) { $0 + $1.scaledSize.height }
+            // Fragment positions already accumulate all preceding scaled heights.
+            let knownLineFragmentHeight = typesetter.lineFragments.last.map { $0.yPosition + $0.scaledSize.height } ?? 0
             let remainingNumberOfLineFragments = typesetter.bestGuessNumberOfLineFragments - typesetter.lineFragments.count
             let lineFragmentHeight = estimatedLineFragmentHeight * lineFragmentHeightMultiplier
             let remainingLineFragmentHeight = CGFloat(remainingNumberOfLineFragments) * lineFragmentHeight
@@ -64,7 +76,8 @@ final class LineController {
     var kern: CGFloat = 0 {
         didSet {
             if kern != oldValue {
-                isDefaultAttributesInvalid = true
+                invalidateLayout()
+                isLayoutAttributesInvalid = true
             }
         }
     }
@@ -73,6 +86,7 @@ final class LineController {
             typesetter.lineBreakMode
         }
         set {
+            if typesetter.lineBreakMode != newValue { invalidateLayout() }
             typesetter.lineBreakMode = newValue
         }
     }
@@ -89,12 +103,17 @@ final class LineController {
     private let highlightService: HighlightService
     private let typesetter: LineTypesetter
     private var cachedSyntaxHighlighter: LineSyntaxHighlighter?
+    private var pendingHighlightInput: LineSyntaxHighlighterInput?
     private var lineFragmentControllers: [LineFragmentID: LineFragmentController] = [:]
     private var isLineFragmentCacheInvalid = true
     private var isStringInvalid = true
     private var isDefaultAttributesInvalid = true
+    private var isLayoutAttributesInvalid = true
+    private var hasAppliedSyntaxHighlighting = false
     private var isSyntaxHighlightingInvalid = true
     private var isTypesetterInvalid = true
+    private var allowsPrefixReuse = false
+    private var isPrefixReuseInvalidated = false
     private var _lineHeight: CGFloat?
     private var lineFragmentTree: LineFragmentTree
     private var syntaxHighlighter: LineSyntaxHighlighter? {
@@ -122,6 +141,10 @@ final class LineController {
         self.lineFragmentTree = LineFragmentTree(minimumValue: 0, rootValue: 0, rootData: rootLineFragmentNodeData)
     }
 
+    deinit {
+        cachedSyntaxHighlighter?.cancel()
+    }
+
     func prepareToDisplayString(in rect: CGRect, syntaxHighlightAsynchronously: Bool) {
         prepareToDisplayString(.inRect(rect), syntaxHighlightAsynchronously: syntaxHighlightAsynchronously)
     }
@@ -130,11 +153,28 @@ final class LineController {
         prepareToDisplayString(.toLocation(location), syntaxHighlightAsynchronously: syntaxHighlightAsynchronously)
     }
 
-    func cancelSyntaxHighlighting() {
-        syntaxHighlighter?.cancel()
+    func prepareToDisplayString(toLineFragmentIndex index: Int, syntaxHighlightAsynchronously: Bool) {
+        prepareToDisplayString(.toLineFragmentIndex(index), syntaxHighlightAsynchronously: syntaxHighlightAsynchronously)
     }
 
-    func invalidateEverything() {
+    func cancelSyntaxHighlighting() {
+        // A staged appearance has not reached the displayed string yet. Rebuild
+        // its defaults if this request is cancelled and the line is revisited.
+        if let input = pendingHighlightInput, input.attributedString !== attributedString {
+            isDefaultAttributesInvalid = true
+        }
+        pendingHighlightInput = nil
+        cachedSyntaxHighlighter?.cancel()
+    }
+
+    func invalidateEverything(allowingPrefixReuse: Bool = false) {
+        // Capture clean/pending state before cancellation clears the request.
+        // Repeated invalidations deliberately drop the one-shot permission.
+        allowsPrefixReuse = allowingPrefixReuse && !typesetter.lineFragments.isEmpty
+            && !isStringInvalid && !isDefaultAttributesInvalid && !isSyntaxHighlightingInvalid && !isTypesetterInvalid
+            && pendingHighlightInput == nil && !isPrefixReuseInvalidated
+        if !allowsPrefixReuse { isPrefixReuseInvalidated = true }
+        cancelSyntaxHighlighting()
         isLineFragmentCacheInvalid = true
         isStringInvalid = true
         isTypesetterInvalid = true
@@ -143,11 +183,24 @@ final class LineController {
         _lineHeight = nil
     }
 
+    /// Reflow the existing styled string without discarding attributes or restarting
+    /// a pending highlight request. Geometry changes do not change syntax captures.
+    func invalidateLayout() {
+        invalidatePrefixReuse()
+        isLineFragmentCacheInvalid = true
+        isTypesetterInvalid = true
+        _lineHeight = nil
+    }
+
     func invalidateSyntaxHighlighter() {
+        invalidatePrefixReuse()
+        cancelSyntaxHighlighting()
         cachedSyntaxHighlighter = nil
     }
 
     func invalidateSyntaxHighlighting() {
+        invalidatePrefixReuse()
+        cancelSyntaxHighlighting()
         isTypesetterInvalid = true
         isDefaultAttributesInvalid = true
         isSyntaxHighlightingInvalid = true
@@ -189,18 +242,46 @@ final class LineController {
 }
 
 private extension LineController {
+    private func invalidatePrefixReuse() {
+        allowsPrefixReuse = false
+        // A later text edit cannot re-arm reuse after nontext invalidation,
+        // including configuration changes that happen to return to old values.
+        isPrefixReuseInvalidated = true
+    }
+
     private func prepareToDisplayString(_ typesetAmount: TypesetAmount, syntaxHighlightAsynchronously: Bool) {
-        prepareString(syntaxHighlightAsynchronously: syntaxHighlightAsynchronously)
+        prepareString(for: typesetAmount, syntaxHighlightAsynchronously: syntaxHighlightAsynchronously)
         typesetLineFragments(typesetAmount)
     }
 
-    private func prepareString(syntaxHighlightAsynchronously: Bool) {
-        syntaxHighlighter?.cancel()
+    private func prepareString(for amount: TypesetAmount, syntaxHighlightAsynchronously: Bool) {
+        // updateString replaces this object; defaults/highlighting mutate only the
+        // new object. Never retain an additional snapshot after this preparation.
+        let previous = allowsPrefixReuse && isStringInvalid && !syntaxHighlightAsynchronously ? attributedString : nil
+        allowsPrefixReuse = false
+        if !syntaxHighlightAsynchronously || isStringInvalid || isDefaultAttributesInvalid
+            || pendingHighlightInput.map({ $0.byteRange != line.data.totalByteRange }) == true {
+            cancelSyntaxHighlighting()
+        }
         clearLineFragmentControllersIfNecessary()
         updateStringIfNecessary()
-        updateDefaultAttributesIfNecessary()
-        updateSyntaxHighlightingIfNecessary(async: syntaxHighlightAsynchronously)
-        updateTypesetterIfNecessary()
+        let stagedInput = updateDefaultAttributesIfNecessary(async: syntaxHighlightAsynchronously)
+        updateLayoutAttributesIfNecessary()
+        updateSyntaxHighlightingIfNecessary(async: syntaxHighlightAsynchronously, stagedInput: stagedInput)
+        updateTypesetterIfNecessary(previous: previous, prefixLimit: previous == nil ? 0 : prefixLimit(for: amount))
+    }
+
+    private func prefixLimit(for amount: TypesetAmount) -> Int {
+        // Leave the target-crossing fragment to the existing suffix loop, which
+        // also preserves its additional-fragment behavior for location requests.
+        switch amount {
+        case .inRect(let rect):
+            return typesetter.lineFragments.prefix { $0.yPosition + $0.scaledSize.height < rect.maxY }.count
+        case .toLocation(let location):
+            return typesetter.lineFragments.prefix { $0.range.upperBound < location }.count
+        case .toLineFragmentIndex(let index):
+            return min(max(0, index), typesetter.lineFragments.count)
+        }
     }
 
     private func typesetLineFragments(_ typesetAmount: TypesetAmount) {
@@ -211,6 +292,9 @@ private extension LineController {
         case .toLocation(let location):
             // When typesetting to a location we'll typeset an additional line fragment to ensure that we can display the text surrounding that location.
             newLineFragments = typesetter.typesetLineFragments(toLocation: location, additionalLineFragmentCount: 1)
+        case .toLineFragmentIndex(let index):
+            let additionalCount = max(0, index + 1 - typesetter.lineFragments.count)
+            newLineFragments = typesetter.typesetLineFragments(toLocation: 0, additionalLineFragmentCount: additionalCount)
         }
         updateLineHeight(for: newLineFragments)
     }
@@ -231,41 +315,68 @@ private extension LineController {
                 attributedString = nil
             }
             isStringInvalid = false
+            hasAppliedSyntaxHighlighting = false
             isDefaultAttributesInvalid = true
             isSyntaxHighlightingInvalid = true
             isTypesetterInvalid = true
         }
     }
 
-    private func updateDefaultAttributesIfNecessary() {
-        if isDefaultAttributesInvalid {
-            if let input = createLineSyntaxHighlightInput() {
-                let defaultStringAttributes = DefaultStringAttributes(
-                    textColor: theme.textColor,
-                    font: theme.font,
-                    kern: kern,
-                    tabWidth: tabWidth
-                )
-                defaultStringAttributes.apply(to: input.attributedString)
-            }
-            isDefaultAttributesInvalid = false
-            isSyntaxHighlightingInvalid = true
-            isTypesetterInvalid = true
-        }
+    private var defaultStringAttributes: DefaultStringAttributes {
+        DefaultStringAttributes(textColor: theme.textColor, font: theme.font, kern: kern, tabWidth: tabWidth)
     }
 
-    private func updateTypesetterIfNecessary() {
+    private func updateDefaultAttributesIfNecessary(async: Bool) -> LineSyntaxHighlighterInput? {
+        guard isDefaultAttributesInvalid, let attributedString else {
+            return nil
+        }
+        // Keep already styled text visible while a replacement appearance is
+        // highlighted. The pending request owns the temporary string, so it is
+        // released on completion or cancellation rather than cached per line.
+        let shouldStage = async && hasAppliedSyntaxHighlighting && syntaxHighlighter?.canHighlight == true
+        let target = shouldStage ? NSMutableAttributedString(string: attributedString.string) : attributedString
+        defaultStringAttributes.apply(to: target)
+        isDefaultAttributesInvalid = false
+        isSyntaxHighlightingInvalid = true
+        if shouldStage {
+            return LineSyntaxHighlighterInput(attributedString: target, byteRange: line.data.totalByteRange)
+        }
+        isLayoutAttributesInvalid = false
+        isTypesetterInvalid = true
+        return nil
+    }
+
+    private func updateLayoutAttributesIfNecessary() {
+        guard isLayoutAttributesInvalid else {
+            return
+        }
+        if let attributedString {
+            defaultStringAttributes.applyLayout(to: attributedString)
+        }
+        if let input = pendingHighlightInput, input.attributedString !== attributedString {
+            defaultStringAttributes.applyLayout(to: input.attributedString)
+        }
+        isLayoutAttributesInvalid = false
+        isTypesetterInvalid = true
+    }
+
+    private func updateTypesetterIfNecessary(previous: NSAttributedString? = nil, prefixLimit: Int = 0) {
         if isTypesetterInvalid {
             lineFragmentTree.reset(rootValue: 0, rootData: LineFragmentNodeData(lineFragment: nil))
-            typesetter.reset()
-            if let attributedString = attributedString {
-                typesetter.prepareToTypeset(attributedString)
+            if let previous, let attributedString, pendingHighlightInput == nil, !isPrefixReuseInvalidated {
+                let prefix = typesetter.reprepareToTypeset(attributedString, previous: previous, prefixLimit: prefixLimit)
+                // Install the prefix even if the suffix request produces nothing.
+                updateLineHeight(for: prefix)
+            } else {
+                typesetter.reset()
+                if let attributedString { typesetter.prepareToTypeset(attributedString) }
             }
             isTypesetterInvalid = false
+            isPrefixReuseInvalidated = false
         }
     }
 
-    private func updateSyntaxHighlightingIfNecessary(async: Bool) {
+    private func updateSyntaxHighlightingIfNecessary(async: Bool, stagedInput: LineSyntaxHighlighterInput?) {
         guard isSyntaxHighlightingInvalid else {
             return
         }
@@ -276,27 +387,69 @@ private extension LineController {
             isSyntaxHighlightingInvalid = false
             return
         }
-        guard let input = createLineSyntaxHighlightInput() else {
+        guard let input = stagedInput ?? createLineSyntaxHighlightInput() else {
             isSyntaxHighlightingInvalid = false
             return
         }
         if async {
-            syntaxHighlighter.syntaxHighlight(input) { [weak self] result in
-                if case .success = result, let self = self {
-                    let oldWidth = self.lineWidth
-                    self.isSyntaxHighlightingInvalid = false
-                    self.isTypesetterInvalid = true
-                    self.redisplayLineFragments()
-                    if abs(self.lineWidth - oldWidth) > CGFloat.ulpOfOne {
-                        self.delegate?.lineControllerDidInvalidateLineWidthDuringAsyncSyntaxHighlight(self)
-                    }
+            guard pendingHighlightInput == nil else {
+                return
+            }
+            pendingHighlightInput = input
+            input.isValid = { [weak self, weak input] in
+                guard let self = self, let input = input else {
+                    return false
                 }
+                return self.pendingHighlightInput === input
+                    && self.line.data.totalByteRange == input.byteRange
+            }
+            syntaxHighlighter.syntaxHighlight(input) { [weak self] result in
+                self?.completeSyntaxHighlighting(input, result: result)
             }
         } else {
-            syntaxHighlighter.cancel()
+            cancelSyntaxHighlighting()
             syntaxHighlighter.syntaxHighlight(input)
+            hasAppliedSyntaxHighlighting = true
             isSyntaxHighlightingInvalid = false
             isTypesetterInvalid = true
+        }
+    }
+
+    private func completeSyntaxHighlighting(_ input: LineSyntaxHighlighterInput,
+                                            result: Result<LineSyntaxHiglighterSetAttributesResult, Error>) {
+        guard pendingHighlightInput === input, line.data.totalByteRange == input.byteRange else {
+            return
+        }
+        pendingHighlightInput = nil
+        if case .success(let attributesResult) = result {
+            if attributedString !== input.attributedString {
+                attributedString = input.attributedString
+                isTypesetterInvalid = true
+            }
+            hasAppliedSyntaxHighlighting = true
+            didApplyHighlightAttributes(attributesResult)
+        } else if attributedString !== input.attributedString {
+            isDefaultAttributesInvalid = true
+        }
+    }
+
+    private func didApplyHighlightAttributes(_ result: LineSyntaxHiglighterSetAttributesResult) {
+        let oldWidth = lineWidth
+        let oldHeight = lineHeight
+        isSyntaxHighlightingInvalid = false
+        if result.isSizingInvalid || isTypesetterInvalid {
+            isTypesetterInvalid = true
+            redisplayLineFragments()
+        } else if let attributedString = attributedString {
+            let fragments = typesetter.refreshAppearance(attributedString)
+            for fragment in fragments {
+                lineFragmentTree.node(atIndex: fragment.index).data.lineFragment = fragment
+            }
+            reapplyLineFragmentToLineFragmentControllers()
+            setNeedsDisplayOnLineFragmentViews()
+        }
+        if abs(lineWidth - oldWidth) > CGFloat.ulpOfOne || abs(lineHeight - oldHeight) > CGFloat.ulpOfOne {
+            delegate?.lineControllerDidInvalidateLineWidthDuringAsyncSyntaxHighlight(self)
         }
     }
 

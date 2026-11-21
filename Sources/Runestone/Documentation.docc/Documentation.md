@@ -8,6 +8,7 @@ Runestone provides a text view with support for features commonly found in code 
 
 - Syntax highlighting.
 - Line numbers.
+- Opt-in code and Markdown section folding from the gutter.
 - Highlight the selected line.
 - Show invisible characters (tabs, spaces and line breaks).
 - Insertion of character pairs, e.g. inserting the trailing quotation mark when inserting the leading.
@@ -70,6 +71,13 @@ Syntax highlighting is based on GitHub's [Tree-sitter](https://github.com/tree-s
 - ``SyntaxNode``
 - ``StringSyntaxHighlighter``
 
+### Code Folding
+
+- <doc:CodeFolding>
+- ``TextView/isCodeFoldingEnabled``
+- ``TextView/isCodeFoldingHapticFeedbackEnabled``
+- ``TreeSitterLanguage/foldsQuery``
+
 ### Indentation
 
 Automatically indent when inserting a new line break.
@@ -98,6 +106,8 @@ Automatically insert and delete closing the closing component of a character pai
 - ``CharacterPairTrailingComponentDeletionMode``
 
 ### Editing
+
+- <doc:SpellChecking>
 
 - ``LineEnding``
 

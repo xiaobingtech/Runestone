@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 final class PlainTextSyntaxHighlighter: LineSyntaxHighlighter {
-    var theme: Theme = DefaultTheme()
+    var theme: Theme = DefaultTheme.shared
     var kern: CGFloat = 0
     var canHighlight: Bool {
         false
@@ -11,7 +11,7 @@ final class PlainTextSyntaxHighlighter: LineSyntaxHighlighter {
     func syntaxHighlight(_ input: LineSyntaxHighlighterInput) {}
 
     func syntaxHighlight(_ input: LineSyntaxHighlighterInput, completion: @escaping AsyncCallback) {
-        completion(.success(()))
+        completion(.success(.init(isSizingInvalid: false)))
     }
 
     func cancel() {}

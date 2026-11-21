@@ -4,6 +4,7 @@ import Foundation
 extension NSAttributedString.Key {
     static let isBold = NSAttributedString.Key("runestone_isBold")
     static let isItalic = NSAttributedString.Key("runestone_isItalic")
+    static let tokenBackgroundColor = NSAttributedString.Key("runestone_tokenBackgroundColor")
 }
 
 struct LineSyntaxHiglighterSetAttributesResult {
@@ -13,6 +14,8 @@ struct LineSyntaxHiglighterSetAttributesResult {
 final class LineSyntaxHighlighterInput {
     let attributedString: NSMutableAttributedString
     let byteRange: ByteRange
+    // Evaluated on the main thread immediately before applying asynchronous styles.
+    var isValid: () -> Bool = { true }
 
     init(attributedString: NSMutableAttributedString, byteRange: ByteRange) {
         self.attributedString = attributedString
@@ -21,7 +24,7 @@ final class LineSyntaxHighlighterInput {
 }
 
 protocol LineSyntaxHighlighter: AnyObject {
-    typealias AsyncCallback = (Result<Void, Error>) -> Void
+    typealias AsyncCallback = (Result<LineSyntaxHiglighterSetAttributesResult, Error>) -> Void
     var theme: Theme { get set }
     var canHighlight: Bool { get }
     func syntaxHighlight(_ input: LineSyntaxHighlighterInput)

@@ -10,31 +10,36 @@ concurrency:
 jobs:
   build:
     name: Build Example Project (Xcode ${{ matrix.xcode }})
-    runs-on: macos-14
-    continue-on-error: true
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
         include:
-          - xcode: 16.2
-            destination: iPhone 16 Pro
-            os: 18.2
-          - xcode: 15.2
-            destination: iPhone 15 Pro
-            os: 17.2
+          - runner: macos-15
+            xcode: "16.4"
+          - runner: macos-26
+            xcode: "26.2"
     env:
       DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Check for changed files
         uses: dorny/paths-filter@v3
         id: changes
         with:
           filters: |
             src:
+              - '.gitmodules'
+              - 'tree-sitter'
               - '.github/workflows/build_example_project.yml'
               - 'Example/**'
+              - 'Package.swift'
               - 'Sources/**'
+      - name: Install xcsift
+        if: steps.changes.outputs.src == 'true'
+        run: brew install xcsift
       - name: Build
         if: steps.changes.outputs.src == 'true'
         run: |
@@ -43,5 +48,5 @@ jobs:
             -project Example/Example.xcodeproj\
             -scheme Example\
             -sdk iphonesimulator\
-            -destination "platform=iOS Simulator,name=${{ matrix.destination }},OS=${{ matrix.os }}"\
-          | xcbeautify --renderer github-actions
+            -destination 'generic/platform=iOS Simulator' \
+          2>&1 | xcsift -f toon

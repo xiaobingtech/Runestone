@@ -4,12 +4,18 @@ enum MenuItem {
     case presentFind
     case presentFindAndReplace
     case presentGoToLine
+    case jumpToTop
+    case jumpToBottom
     case presentThemePicker
     case toggleEditable
     case toggleInvisibleCharacters
     case toggleHighlightSelectedLine
+    case toggleCodeFolding
+    case showJavaScriptFoldingExample
+    case showMarkdownFoldingExample
     case toggleLineNumbers
     case togglePageGuide
     case toggleSelectable
     case toggleWrapLines
+    case toggleSpellChecking
 }

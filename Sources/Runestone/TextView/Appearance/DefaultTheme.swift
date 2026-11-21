@@ -17,6 +17,11 @@ public final class DefaultTheme: Runestone.Theme {
     public let markedTextBackgroundColor = UIColor(themeColorNamed: "marked_text")
     public let selectionColor = UIColor(themeColorNamed: "selection")
 
+    /// Shared immutable theme used when no custom theme is supplied.
+    ///
+    /// Its colors adapt to the appearance of the interface where they are displayed.
+    public static let shared = DefaultTheme()
+
     public init() {}
 
     // swiftlint:disable:next cyclomatic_complexity
@@ -72,10 +77,16 @@ public final class DefaultTheme: Runestone.Theme {
         switch style {
         case .found:
             let color = UIColor(themeColorNamed: "search_match_found")
-            return HighlightedRange(range: foundTextRange, color: color, cornerRadius: 2)
+            return HighlightedRange(range: foundTextRange,
+                                    color: color,
+                                    cornerRadius: 3,
+                                    presentationRole: .foundSearchResult)
         case .highlighted:
             let color = UIColor(themeColorNamed: "search_match_highlighted")
-            return HighlightedRange(range: foundTextRange, color: color, cornerRadius: 2)
+            return HighlightedRange(range: foundTextRange,
+                                    color: color,
+                                    cornerRadius: 5,
+                                    presentationRole: .selectedSearchResult)
         case .normal:
             return nil
         @unknown default:

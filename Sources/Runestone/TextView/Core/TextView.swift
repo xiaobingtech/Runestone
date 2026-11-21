@@ -12,7 +12,11 @@ import UIKit
 /// The function takes an instance of ``TextViewState`` as input which can be created on a background queue to avoid blocking the main queue while doing the initial parse of a text.
 open class TextView: UIScrollView {
     /// Delegate to receive callbacks for events triggered by the editor.
-    public weak var editorDelegate: TextViewDelegate?
+    public weak var editorDelegate: TextViewDelegate? {
+        didSet {
+            textInputView.invalidateSpellChecking()
+        }
+    }
     /// Whether the text view is in a state where the contents can be edited.
     public private(set) var isEditing = false {
         didSet {
@@ -27,13 +31,18 @@ open class TextView: UIScrollView {
             textInputView.string as String
         }
         set {
+            let wasFolding = foldingMinimumContentHeight != nil
+            textInputView.resetIgnoredSpellingWords()
             textInputView.string = newValue as NSString
             contentSize = preferredContentSize
+            if wasFolding { settleFoldingContentOffset(animated: false) }
         }
     }
     /// A Boolean value that indicates whether the text view is editable.
     public var isEditable = true {
         didSet {
+            textInputView.isEditableForSystemTextReplacement = isEditable
+            if !isEditable { stopWritingTools() }
             if isEditable != oldValue && !isEditable && isEditing {
                 resignFirstResponder()
                 textInputViewDidEndEditing(textInputView)
@@ -44,6 +53,7 @@ open class TextView: UIScrollView {
     public var isSelectable = true {
         didSet {
             if isSelectable != oldValue {
+                if !isSelectable { stopWritingTools() }
                 textInputView.isUserInteractionEnabled = isSelectable
                 if !isSelectable && isEditing {
                     resignFirstResponder()
@@ -108,13 +118,92 @@ open class TextView: UIScrollView {
         }
     }
     /// The spell-checking style for the text object.
+    ///
+    /// `.yes` checks visible text independently of autocorrection, `.no` disables checking, and
+    /// `.default` checks when ``autocorrectionType`` is not `.no`. Underlines and corrections use public UIKit APIs.
     public var spellCheckingType: UITextSpellCheckingType {
         get {
-            textInputView.spellCheckingType
+            textInputView.preferredSpellCheckingType
         }
         set {
-            textInputView.spellCheckingType = newValue
+            textInputView.preferredSpellCheckingType = newValue
         }
+    }
+    /// The language used for spelling, such as `en_US`, or `nil` to detect the language of visible paragraphs.
+    ///
+    /// Use a language from `UITextChecker.availableLanguages`. A bare code such as `en` resolves to the first
+    /// advertised dictionary for that language in Apple's preference order. An explicit choice bypasses detection;
+    /// an unavailable regional or script choice disables checking. Short or uncertain paragraphs fall back to the
+    /// keyboard and preferred system dictionaries. Detected languages are transient and are not persisted.
+    /// Spelling is checked incrementally in visible text. Set ``spellCheckingType`` to `.yes` to enable it
+    /// independently of autocorrection. The delegate can exclude code or other non-prose ranges.
+    public var spellCheckingLanguage: String? {
+        get {
+            textInputView.spellCheckingLanguage
+        }
+        set {
+            textInputView.spellCheckingLanguage = newValue
+        }
+    }
+
+    /// Whether spelling menus include Ignore Spelling when applicable. Defaults to false.
+    /// This controls menu visibility only; the corresponding dictionary API remains available.
+    public var showIgnoreSpellingAction: Bool {
+        get { textInputView.showIgnoreSpellingAction }
+        set { textInputView.showIgnoreSpellingAction = newValue }
+    }
+
+    /// Whether spelling menus include Learn Spelling when applicable. Defaults to false.
+    /// This controls menu visibility only; the corresponding dictionary API remains available.
+    public var showLearnSpellingAction: Bool {
+        get { textInputView.showLearnSpellingAction }
+        set { textInputView.showLearnSpellingAction = newValue }
+    }
+
+    /// Whether spelling menus include Unlearn Spelling when applicable. Defaults to false.
+    /// This controls menu visibility only; the corresponding dictionary API remains available.
+    public var showUnlearnSpellingAction: Bool {
+        get { textInputView.showUnlearnSpellingAction }
+        set { textInputView.showUnlearnSpellingAction = newValue }
+    }
+
+    /// Words ignored in this view's current document session. This list is not persisted or shared between views.
+    /// Assigning ``text`` or calling ``setState(_:addUndoAction:)`` starts a new session and clears this list.
+    public var ignoredSpellingWords: [String] {
+        textInputView.ignoredSpellingWords
+    }
+
+    /// Ignores a whole word in this document session and rechecks visible spelling.
+    /// Ordinary edits, undo, language changes, and disabling checking preserve ignored words.
+    public func ignoreSpellingWord(_ word: String) {
+        textInputView.ignoreSpellingWord(word)
+    }
+
+    /// Starts a fresh spelling session without changing the document or undo history.
+    public func resetIgnoredSpellingWords() {
+        textInputView.resetIgnoredSpellingWords()
+    }
+
+    /// Adds a word to Apple's shared learned dictionary, across documents and languages.
+    /// Call only in response to an explicit user request. Runestone views refresh automatically.
+    public static func learnSpellingWord(_ word: String) {
+        SpellCheckingService.learnWord(word)
+    }
+
+    /// Removes a user-learned word from Apple's shared dictionary and refreshes Runestone views.
+    public static func unlearnSpellingWord(_ word: String) {
+        SpellCheckingService.unlearnWord(word)
+    }
+
+    /// Whether Apple's shared dictionary contains this user-learned word.
+    public static func hasLearnedSpellingWord(_ word: String) -> Bool {
+        SpellCheckingService.hasLearnedWord(word)
+    }
+
+    /// Rechecks visible spelling after the delegate's policy or externally managed learned dictionary changes.
+    /// Runestone also refreshes when the app becomes active or this view becomes first responder.
+    public func invalidateSpellChecking() {
+        textInputView.invalidateSpellChecking()
     }
     /// The keyboard type for the text view.
     public var keyboardType: UIKeyboardType {
@@ -143,6 +232,44 @@ open class TextView: UIScrollView {
             textInputView.returnKeyType = newValue
         }
     }
+    /// Returns UTF-16 ranges that Writing Tools must preserve in the supplied document text.
+    /// The provider is evaluated again as text changes. It must not mutate the editor.
+    /// Invalid, empty, and surrogate-splitting ranges are ignored. Overlapping ranges are merged.
+    /// Exclusions also apply to explicitly selected text; ordinary user edits remain allowed.
+    /// Replacements spanning protected text are rejected unless an unchanged prefix or suffix
+    /// proves that the protected contents are preserved. Prefer excluding specific code or names
+    /// rather than an entire document. Changing this provider ends any current session.
+    /// Native exclusion attributes require iOS 18.2 or visionOS 2.4 and a compatible SDK.
+    public var writingToolsExcludedRangesProvider: ((String) -> [NSRange])? {
+        get { textInputView.writingToolsExcludedRangesProvider }
+        set { textInputView.writingToolsExcludedRangesProvider = newValue }
+    }
+
+    /// Whether UIKit has presented the Writing Tools panel, including its initial chooser.
+    /// This is independent of `isWritingToolsActive`: the chooser can appear without starting a session.
+    /// To hide accessory UI throughout Writing Tools, check whether either property is `true`.
+    /// Always `false` on systems that don't support the Writing Tools panel callbacks.
+    public var isWritingToolsPresented: Bool { textInputView.isWritingToolsPresented }
+
+    /// Whether Writing Tools is evaluating text or presenting changes for review.
+    /// During this time changes can be provisional. Defer persistence until the delegate's
+    /// `textViewWritingToolsDidEnd(_:)` callback if only accepted content should be saved.
+    public var isWritingToolsActive: Bool { textInputView.isWritingToolsActive }
+
+    /// Stops Writing Tools and keeps the text currently displayed in the editor.
+    /// This does not reject or undo the current revision.
+    public func stopWritingTools() { textInputView.stopWritingTools() }
+
+#if compiler(>=6.0.3) && (!os(visionOS) || compiler(>=6.1))
+    /// The preferred Writing Tools experience. Defaults to `.complete`.
+    /// Inline support requires iOS 18.2 or later and a device that supports Apple Intelligence.
+    @available(iOS 18.0, visionOS 2.4, *)
+    public var writingToolsBehavior: UIWritingToolsBehavior {
+        get { textInputView.writingToolsBehavior }
+        set { textInputView.writingToolsBehavior = newValue }
+    }
+#endif
+
     /// Returns the undo manager used by the text view.
     override public var undoManager: UndoManager? {
         textInputView.undoManager
@@ -236,6 +363,10 @@ open class TextView: UIScrollView {
     override public var contentOffset: CGPoint {
         didSet {
             if contentOffset != oldValue {
+                if foldingScrollAnimator != nil, !isAdjustingFoldingContentOffset {
+                    finishFoldingScrollAdjustment()
+                }
+                textInputView.dismissSpellingMenu()
                 textInputView.viewport = CGRect(origin: contentOffset, size: frame.size)
             }
         }
@@ -260,6 +391,23 @@ open class TextView: UIScrollView {
             textInputView.characterPairTrailingComponentDeletionMode = newValue
         }
     }
+    /// Enable to show code folding controls in the gutter.
+    ///
+    /// The default value is false. The language must provide a folding query.
+    /// Refer to <doc:CodeFolding> for more information on enabling code folding.
+    public var isCodeFoldingEnabled: Bool {
+        get { textInputView.isCodeFoldingEnabled }
+        set { textInputView.isCodeFoldingEnabled = newValue }
+    }
+
+    /// Determines whether animated code folding produces haptic feedback on supported devices.
+    ///
+    /// The default value is true. Disabling feedback does not affect folding animations.
+    public var isCodeFoldingHapticFeedbackEnabled: Bool {
+        get { textInputView.isCodeFoldingHapticFeedbackEnabled }
+        set { textInputView.isCodeFoldingHapticFeedbackEnabled = newValue }
+    }
+
     /// Enable to show line numbers in the gutter.
     public var showLineNumbers: Bool {
         get {
@@ -535,6 +683,30 @@ open class TextView: UIScrollView {
             highlightNavigationController.highlightedRanges = newValue
         }
     }
+    /// Whether search results may be presented above dimmed editor content.
+    ///
+    /// Defaults to `false`. Enable this to use Runestone's dimming and selected-result
+    /// animation with either the built-in or a custom find interaction.
+    public var isFindResultPresentationEnabled: Bool {
+        get {
+            textInputView.isFindResultPresentationEnabled
+        }
+        set {
+            textInputView.isFindResultPresentationEnabled = newValue
+        }
+    }
+    /// Whether a find interaction currently requests result presentation.
+    ///
+    /// Runestone manages this property automatically for its built-in find interaction.
+    /// Custom find interactions should update it when their session begins and ends.
+    public var isFindResultPresentationActive: Bool {
+        get {
+            textInputView.isFindResultPresentationActive
+        }
+        set {
+            textInputView.isFindResultPresentationActive = newValue
+        }
+    }
     /// Wheter the text view should loop when navigating through highlighted ranges using `selectPreviousHighlightedRange` or `selectNextHighlightedRange` on the text view.
     public var highlightedRangeLoopingMode: HighlightedRangeLoopingMode {
         get {
@@ -599,6 +771,7 @@ open class TextView: UIScrollView {
     }
     private var _editMenuInteraction: Any?
     private let tapGestureRecognizer = QuickTapGestureRecognizer()
+    private let spellingTapGestureRecognizer = UITapGestureRecognizer()
     private var _inputAccessoryView: UIView?
     private var isPerformingNonEditableTextInteraction = false
     private var delegateAllowsEditingToBegin: Bool {
@@ -619,6 +792,10 @@ open class TextView: UIScrollView {
         }
     }
     private var hasPendingContentSizeUpdate = false
+    // Preserve valid scroll geometry until folding and any final offset adjustment finish.
+    private var foldingMinimumContentHeight: CGFloat?
+    private var foldingScrollAnimator: UIViewPropertyAnimator?
+    private var isAdjustingFoldingContentOffset = false
     private var isInputAccessoryViewEnabled = false
     private let keyboardObserver = KeyboardObserver()
     private let highlightNavigationController = HighlightNavigationController()
@@ -630,6 +807,10 @@ open class TextView: UIScrollView {
     private var textRangeAdjustmentGestureRecognizers: Set<UIGestureRecognizer> = []
     private var previousSelectedRangeDuringGestureHandling: NSRange?
     private var preferredContentSize: CGSize {
+        let size = documentContentSize
+        return CGSize(width: size.width, height: max(size.height, foldingMinimumContentHeight ?? 0))
+    }
+    private var documentContentSize: CGSize {
         let horizontalOverscrollLength = max(frame.width * horizontalOverscrollFactor, 0)
         let verticalOverscrollLength = max(frame.height * verticalOverscrollFactor, 0)
         let baseContentSize = textInputView.contentSize
@@ -637,25 +818,11 @@ open class TextView: UIScrollView {
         let height = baseContentSize.height + verticalOverscrollLength
         return CGSize(width: width, height: height)
     }
-    @available(iOS 26.0, *)
-    private var scrollPocketView: UIView? {
-        if let _scrollPocketView = _scrollPocketView {
-            return _scrollPocketView
-        } else {
-            let stringType = String("IU_".reversed()) + "Scroll" + String("tekcoP".reversed())
-            let scrollPocketView = subviews.first { view in
-                String(describing: type(of: view)) == stringType
-            }
-            _scrollPocketView = scrollPocketView
-            return scrollPocketView
-        }
-    }
-    private var _scrollPocketView: UIView?
 
     /// Create a new text view.
     /// - Parameter frame: The frame rectangle of the text view.
     override public init(frame: CGRect) {
-        textInputView = TextInputView(theme: DefaultTheme())
+        textInputView = TextInputView(theme: DefaultTheme.shared)
         super.init(frame: frame)
         backgroundColor = .white
         textInputView.delegate = self
@@ -668,6 +835,10 @@ open class TextView: UIScrollView {
         tapGestureRecognizer.delegate = self
         tapGestureRecognizer.addTarget(self, action: #selector(handleTap(_:)))
         addGestureRecognizer(tapGestureRecognizer)
+        spellingTapGestureRecognizer.delegate = self
+        spellingTapGestureRecognizer.cancelsTouchesInView = false
+        spellingTapGestureRecognizer.addTarget(self, action: #selector(handleSpellingTap(_:)))
+        addGestureRecognizer(spellingTapGestureRecognizer)
         installNonEditableInteraction()
         keyboardObserver.delegate = self
         highlightNavigationController.delegate = self
@@ -687,10 +858,8 @@ open class TextView: UIScrollView {
         textInputView.scrollViewWidth = frame.width
         textInputView.frame = CGRect(x: 0, y: 0, width: max(contentSize.width, frame.width), height: max(contentSize.height, frame.height))
         textInputView.viewport = CGRect(origin: contentOffset, size: frame.size)
-        bringSubviewToFront(textInputView.gutterContainerView)
-        if #available(iOS 26, *), let scrollPocketView {
-            bringSubviewToFront(scrollPocketView)
-        }
+        // Keep the gutter above text and selection views without covering the scroll view's overlays.
+        insertSubview(textInputView.gutterContainerView, aboveSubview: textInputView)
     }
 
     /// Called when the safe area of the view changes.
@@ -739,8 +908,11 @@ open class TextView: UIScrollView {
     /// - Parameter state: The new state to be used by the editor.
     /// - Parameter addUndoAction: Whether the state change can be undone. Defaults to false.
     public func setState(_ state: TextViewState, addUndoAction: Bool = false) {
+        let wasFolding = foldingMinimumContentHeight != nil
+        textInputView.resetIgnoredSpellingWords()
         textInputView.setState(state, addUndoAction: addUndoAction)
         contentSize = preferredContentSize
+        if wasFolding { settleFoldingContentOffset(animated: false) }
     }
 
     /// Returns the row and column at the specified location in the text.
@@ -895,6 +1067,7 @@ open class TextView: UIScrollView {
         becomeFirstResponder()
         let line = textInputView.lineManager.line(atRow: lineIndex)
         textInputView.layoutLines(toLocation: line.location)
+        handleContentSizeUpdateIfNeeded()
         scrollLocationToVisible(line.location)
         layoutIfNeeded()
         switch selection {
@@ -1127,7 +1300,11 @@ extension TextView {
     /// - Parameters:
     ///   - range: The range of text to scroll into view.
     public func scrollRangeToVisible(_ range: NSRange) {
-        textInputView.layoutLines(toLocation: range.upperBound)
+        textInputView.layoutLines(toLocation: range.lowerBound)
+        if range.length > 0 {
+            textInputView.layoutLines(toLocation: range.upperBound)
+        }
+        handleContentSizeUpdateIfNeeded()
         justScrollRangeToVisible(range)
     }
 }
@@ -1146,6 +1323,23 @@ private extension TextView {
             }
             installEditableInteraction()
             becomeFirstResponder()
+        }
+    }
+
+    @objc private func handleSpellingTap(_ gestureRecognizer: UITapGestureRecognizer) {
+        guard gestureRecognizer.state == .ended else {
+            return
+        }
+        let point = gestureRecognizer.location(in: textInputView)
+        let version = textInputView.textMutationVersion
+        textInputView.dismissSpellingMenu()
+        // Let UITextInteraction finish moving the caret and the initial tap start editing first.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.isEditable, self.isSelectable, self.isEditing,
+                  !self.isDragging, !self.isDecelerating, self.textInputView.textMutationVersion == version else {
+                return
+            }
+            self.textInputView.presentSpellingMenu(at: point)
         }
     }
 
@@ -1212,6 +1406,40 @@ private extension TextView {
         }
     }
 
+    private func finishFoldingScrollAdjustment() {
+        foldingScrollAnimator?.stopAnimation(true)
+        foldingScrollAnimator = nil
+        foldingMinimumContentHeight = nil
+        contentSize = preferredContentSize
+        setNeedsLayout()
+    }
+
+    private func settleFoldingContentOffset(animated: Bool) {
+        let minimumY = -adjustedContentInset.top
+        let maximumY = max(minimumY, documentContentSize.height - bounds.height + adjustedContentInset.bottom)
+        let target = CGPoint(x: contentOffset.x, y: min(max(contentOffset.y, minimumY), maximumY))
+        guard animated, foldingMinimumContentHeight != nil, target != contentOffset, !isDragging, !isDecelerating else {
+            finishFoldingScrollAdjustment()
+            contentOffset = target
+            return
+        }
+        let animator = UIViewPropertyAnimator(duration: 0.16, curve: .easeInOut) { [weak self] in
+            guard let self = self else {
+                return
+            }
+            self.isAdjustingFoldingContentOffset = true
+            self.contentOffset = target
+            self.isAdjustingFoldingContentOffset = false
+        }
+        animator.addCompletion { [weak self] _ in
+            // The animator has completed; clear it before releasing the height.
+            self?.foldingScrollAnimator = nil
+            self?.finishFoldingScrollAdjustment()
+        }
+        foldingScrollAnimator = animator
+        animator.startAnimation()
+    }
+
     private func handleContentSizeUpdateIfNeeded() {
         if hasPendingContentSizeUpdate {
             // We don't want to update the content size when the scroll view is "bouncing" near the gutter,
@@ -1253,13 +1481,24 @@ private extension TextView {
         if editableTextInteraction.view == nil {
             isInputAccessoryViewEnabled = true
             textInputView.removeInteraction(nonEditableTextInteraction)
+            addEditableInteractionWithoutAnimation()
+        }
+    }
+
+    private func addEditableInteractionWithoutAnimation() {
+        // Lay out the caret at its final size before it appears, including when focus
+        // changes inside a keyboard or container animation.
+        UIView.performWithoutAnimation {
             textInputView.addInteraction(editableTextInteraction)
             #if compiler(>=5.9)
             if #available(iOS 17, *) {
                 // Workaround a bug where the caret does not appear until the user taps again on iOS 17 (FB12622609).
-                textInputView.sbs_textSelectionDisplayInteraction?.isActivated = true
+                let interaction = textInputView.sbs_textSelectionDisplayInteraction
+                interaction?.isActivated = true
+                interaction?.layoutManagedSubviews()
             }
             #endif
+            textInputView.layoutIfNeeded()
         }
     }
 
@@ -1349,20 +1588,52 @@ extension TextView: TextInputViewDelegate {
         editorDelegate?.textViewDidEndEditing(self)
     }
 
+    func textInputViewWritingToolsWillPresent(_ view: TextInputView) {
+        editorDelegate?.textViewWritingToolsWillPresent(self)
+    }
+
+    func textInputViewWritingToolsDidDismiss(_ view: TextInputView) {
+        editorDelegate?.textViewWritingToolsDidDismiss(self)
+    }
+
+    func textInputViewWritingToolsWillBegin(_ view: TextInputView) {
+        editorDelegate?.textViewWritingToolsWillBegin(self)
+    }
+
+    func textInputViewWritingToolsDidEnd(_ view: TextInputView) {
+        editorDelegate?.textViewWritingToolsDidEnd(self)
+    }
+
     func textInputViewDidChange(_ view: TextInputView) {
-        if isAutomaticScrollEnabled, let newRange = textInputView.selectedRange, newRange.length == 0 {
+        if foldingScrollAnimator != nil { finishFoldingScrollAdjustment() }
+        if isAutomaticScrollEnabled, !isWritingToolsActive, let newRange = textInputView.selectedRange, newRange.length == 0 {
             scrollLocationToVisible(newRange.location)
         }
         editorDelegate?.textViewDidChange(self)
     }
 
+    func textInputView(_ view: TextInputView, shouldCheckSpellingIn range: NSRange) -> Bool {
+        editorDelegate?.textView(self, shouldCheckSpellingIn: range) ?? true
+    }
+
     func textInputViewDidChangeSelection(_ view: TextInputView) {
         UIMenuController.shared.hideMenu(from: self)
         highlightNavigationController.selectedRange = view.selectedRange
-        if isAutomaticScrollEnabled, let newRange = textInputView.selectedRange, newRange.length == 0 {
+        if isAutomaticScrollEnabled, !isWritingToolsActive, let newRange = textInputView.selectedRange, newRange.length == 0 {
             scrollLocationToVisible(newRange.location)
         }
         editorDelegate?.textViewDidChangeSelection(self)
+    }
+
+    func textInputViewWillBeginFoldingTransition(_ view: TextInputView) {
+        finishFoldingScrollAdjustment()
+        foldingMinimumContentHeight = contentSize.height
+    }
+
+    func textInputViewDidFinishFoldingTransition(_ view: TextInputView, animated: Bool) {
+        if foldingMinimumContentHeight != nil || foldingScrollAnimator != nil {
+            settleFoldingContentOffset(animated: animated)
+        }
     }
 
     func textInputViewDidInvalidateContentSize(_ view: TextInputView) {
@@ -1373,15 +1644,15 @@ extension TextView: TextInputViewDelegate {
     }
 
     func textInputView(_ view: TextInputView, didProposeContentOffsetAdjustment contentOffsetAdjustment: CGPoint) {
-        let isScrolling = isDragging || isDecelerating
-        if contentOffsetAdjustment != .zero && isScrolling {
+        if contentOffsetAdjustment != .zero {
             contentOffset = CGPoint(x: contentOffset.x + contentOffsetAdjustment.x, y: contentOffset.y + contentOffsetAdjustment.y)
         }
     }
 
     func textInputView(_ view: TextInputView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
-        if textInputView.isRestoringPreviouslyDeletedText {
-            // UIKit is inserting text to combine characters, for example to combine two Korean characters into one, and we do not want to interfere with that.
+        if textInputView.isRestoringPreviouslyDeletedText || view.isUpdatingMarkedText || view.isApplyingSystemTextReplacement {
+            // Let UIKit compose marked text without inserting or skipping character pairs.
+            // This also applies when UIKit restores text while combining Korean characters.
             return editorDelegate?.textView(self, shouldChangeTextIn: range, replacementText: text) ?? true
         } else if let characterPair = characterPairs.first(where: { $0.trailing == text }),
                     skipInsertingTrailingComponent(of: characterPair, in: range) {
@@ -1411,10 +1682,9 @@ extension TextView: TextInputViewDelegate {
         DispatchQueue.main.async {
             if !view.viewHierarchyContainsCaret && self.editableTextInteraction.view != nil {
                 view.removeInteraction(self.editableTextInteraction)
-                view.addInteraction(self.editableTextInteraction)
+                self.addEditableInteractionWithoutAnimation()
                 #if compiler(>=5.9)
                 if #available(iOS 17, *) {
-                    self.textInputView.sbs_textSelectionDisplayInteraction?.isActivated = true
                     self.textInputView.sbs_textSelectionDisplayInteraction?.sbs_enableCursorBlinks()
                 }
                 #endif
@@ -1465,6 +1735,8 @@ extension TextView: UIGestureRecognizerDelegate {
     override public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         if gestureRecognizer === tapGestureRecognizer {
             return !isEditing && !isDragging && !isDecelerating && delegateAllowsEditingToBegin
+        } else if gestureRecognizer === spellingTapGestureRecognizer {
+            return isEditable && isSelectable && !isDragging && !isDecelerating
         } else {
             return super.gestureRecognizerShouldBegin(gestureRecognizer)
         }
@@ -1484,10 +1756,14 @@ extension TextView: UIGestureRecognizerDelegate {
 
 // MARK: - KeyboardObserverDelegate
 extension TextView: KeyboardObserverDelegate {
+    func keyboardObserver(_ keyboardObserver: KeyboardObserver, keyboardWillHideWith animation: KeyboardObserver.Animation?) {
+        textInputView.dismissSpellingMenu()
+    }
+
     func keyboardObserver(_ keyboardObserver: KeyboardObserver,
                           keyboardWillShowWithHeight keyboardHeight: CGFloat,
                           animation: KeyboardObserver.Animation?) {
-        if isAutomaticScrollEnabled, let newRange = textInputView.selectedRange, newRange.length == 0 {
+        if isAutomaticScrollEnabled, !isWritingToolsActive, let newRange = textInputView.selectedRange, newRange.length == 0 {
             scrollRangeToVisible(newRange)
         }
     }

@@ -10,24 +10,34 @@ let package = Package(
         .iOS(.v14)
     ],
     products: [
-        .library(name: "Runestone", targets: ["Runestone"])
-    ],
-    dependencies: [
-        .package(url: "https://github.com/tree-sitter/tree-sitter", .upToNextMinor(from: "0.20.9"))
+        .library(name: "Runestone", targets: ["Runestone"]),
+        .library(name: "TreeSitter", targets: ["TreeSitter"])
     ],
     targets: [
         .target(name: "Runestone", dependencies: [
-            .product(name: "TreeSitter", package: "tree-sitter")
+            "TreeSitter",
+            "TreeSitterSupport"
         ], resources: [
             .copy("PrivacyInfo.xcprivacy"),
             .process("TextView/Appearance/Theme.xcassets")
         ]),
+        .target(
+            name: "TreeSitter",
+            path: "tree-sitter/lib",
+            sources: ["src/lib.c"],
+            publicHeadersPath: "include",
+            cSettings: [.headerSearchPath("src"), .define("_DARWIN_C_SOURCE")]
+        ),
+        .target(name: "TreeSitterSupport", dependencies: ["TreeSitter"]),
         .target(name: "TestTreeSitterLanguages", cSettings: [
+            .headerSearchPath("private"),
             .unsafeFlags(["-w"])
         ]),
         .testTarget(name: "RunestoneTests", dependencies: [
             "Runestone",
+            "TreeSitterSupport",
             "TestTreeSitterLanguages"
         ])
-    ]
+    ],
+    cLanguageStandard: .c11
 )

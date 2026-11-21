@@ -16,11 +16,29 @@ final class MenuButton: UIButton {
 
 private extension MenuButton {
     private func setupMenu() {
-        menu = UIMenu(children: makeFeaturesMenuElements() + makeSettingsMenuElements() + makeThemeMenuElements())
+        menu = UIMenu(children: makeNavigationMenuElements() + makeFeaturesMenuElements() + makeSettingsMenuElements() + makeThemeMenuElements())
     }
 }
 
 private extension MenuButton {
+    private func makeNavigationMenuElements() -> [UIMenuElement] {
+        guard ProcessInfo.processInfo.navigationDocumentName != nil else {
+            return []
+        }
+        return [
+            UIMenu(options: .displayInline, children: [
+                UIAction(title: "Jump to Top") { [weak self] _ in
+                    self?.selectionHandler?.handleSelection(of: .jumpToTop)
+                }
+            ]),
+            UIMenu(options: .displayInline, children: [
+                UIAction(title: "Jump to Bottom") { [weak self] _ in
+                    self?.selectionHandler?.handleSelection(of: .jumpToBottom)
+                }
+            ])
+        ]
+    }
+
     private func makeFeaturesMenuElements() -> [UIMenuElement] {
         var menuElements: [UIMenuElement] = []
         if #available(iOS 16, *) {
@@ -38,7 +56,17 @@ private extension MenuButton {
         menuElements += [
             UIAction(title: "Go to Line") { [weak self] _ in
                 self?.selectionHandler?.handleSelection(of: .presentGoToLine)
-            }
+            },
+            UIMenu(title: "Folding Examples", children: [
+                UIAction(title: "JavaScript Folding Example") { [weak self] _ in
+                    self?.selectionHandler?.handleSelection(of: .showJavaScriptFoldingExample)
+                    self?.setupMenu()
+                },
+                UIAction(title: "Markdown Folding Example") { [weak self] _ in
+                    self?.selectionHandler?.handleSelection(of: .showMarkdownFoldingExample)
+                    self?.setupMenu()
+                }
+            ])
         ]
         return menuElements
     }
@@ -49,6 +77,10 @@ private extension MenuButton {
             UIMenu(options: .displayInline, children: [
                 UIAction(title: "Show Line Numbers", state: settings.showLineNumbers ? .on : .off) { [weak self] _ in
                     self?.selectionHandler?.handleSelection(of: .toggleLineNumbers)
+                    self?.setupMenu()
+                },
+                UIAction(title: "Code Folding", state: settings.codeFoldingEnabled ? .on : .off) { [weak self] _ in
+                    self?.selectionHandler?.handleSelection(of: .toggleCodeFolding)
                     self?.setupMenu()
                 },
                 UIAction(title: "Show Page Guide", state: settings.showPageGuide ? .on : .off) { [weak self] _ in
@@ -69,6 +101,10 @@ private extension MenuButton {
                 }
             ]),
             UIMenu(options: .displayInline, children: [
+                UIAction(title: "Check Spelling", state: settings.checkSpelling ? .on : .off) { [weak self] _ in
+                    self?.selectionHandler?.handleSelection(of: .toggleSpellChecking)
+                    self?.setupMenu()
+                },
                 UIAction(title: "Allow Editing", state: settings.isEditable ? .on : .off) { [weak self] _ in
                     self?.selectionHandler?.handleSelection(of: .toggleEditable)
                     self?.setupMenu()

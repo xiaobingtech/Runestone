@@ -12,6 +12,8 @@ final class TreeSitterLanguageLayer {
     private let lineManager: LineManager
     private let parser: TreeSitterParser
     private let stringView: StringView
+    private var queryStringView: StringView
+    private var includedRange: TreeSitterTextRange?
     private var childLanguageLayerStore = TreeSitterLanguageLayerStore()
     private weak var parentLanguageLayer: TreeSitterLanguageLayer?
     private let languageProvider: TreeSitterLanguageProvider?
@@ -32,13 +34,15 @@ final class TreeSitterLanguageLayer {
         self.languageProvider = languageProvider
         self.parser = parser
         self.stringView = stringView
+        self.queryStringView = stringView
         self.lineManager = lineManager
     }
 }
 
 // MARK: - Parsing
 extension TreeSitterLanguageLayer {
-    func parse(_ text: NSString) {
+    func parse(_ text: NSString, predicateStringView: StringView) {
+        queryStringView = predicateStringView
         let ranges = [tree?.rootNode.textRange].compactMap { $0 }
         parse(ranges, from: text)
     }
@@ -67,6 +71,7 @@ extension TreeSitterLanguageLayer {
     }
 
     private func apply(_ edit: TreeSitterInputEdit, parsing ranges: [TreeSitterTextRange] = []) -> LineChangeSet {
+        queryStringView = stringView
         // Apply edit to tree.
         let oldTree = tree
         tree?.apply(edit)
@@ -92,7 +97,8 @@ extension TreeSitterLanguageLayer {
 
     private func prepareParser(toParse ranges: [TreeSitterTextRange]) {
         parser.language = language.languagePointer
-        if !ranges.isEmpty && parentLanguageLayer != nil {
+        includedRange = parentLanguageLayer != nil ? ranges.first : nil
+        if includedRange != nil {
             parser.setIncludedRanges(ranges)
         } else {
             parser.removeAllIncludedRanges()
@@ -108,10 +114,11 @@ extension TreeSitterLanguageLayer {
         }
         let queryCursor = TreeSitterQueryCursor(query: injectionsQuery, node: node)
         queryCursor.execute()
-        let captures = queryCursor.validCaptures(in: stringView)
+        let captures = queryCursor.validCaptures(in: queryStringView)
         let injectedLanguages = injectedLanguages(from: captures)
         for injectedLanguage in injectedLanguages {
             if let childLanguageLayer = childLanguageLayer(withID: injectedLanguage.id, forLanguageNamed: injectedLanguage.languageName) {
+                childLanguageLayer.queryStringView = queryStringView
                 childLanguageLayer.parse([injectedLanguage.textRange], from: text)
             }
         }
@@ -120,6 +127,22 @@ extension TreeSitterLanguageLayer {
 
 // MARK: - Syntax Highlighting
 extension TreeSitterLanguageLayer {
+    func foldingSnapshotLayers() -> [TreeSitterFoldingSnapshot.Layer] {
+        var layers: [TreeSitterFoldingSnapshot.Layer] = []
+        if let tree = tree, let query = language.foldsQuery {
+            layers.append(.init(tree: tree.copy(), query: query))
+        }
+        return layers + childLanguageLayerStore.allLayers.flatMap { $0.foldingSnapshotLayers() }
+    }
+
+    func highlightSnapshotLayers() -> [TreeSitterHighlightSnapshot.Layer] {
+        guard let tree = tree, let query = language.highlightsQuery else {
+            return []
+        }
+        return [.init(tree: tree.copy(), query: query)]
+            + childLanguageLayerStore.allLayers.flatMap { $0.highlightSnapshotLayers() }
+    }
+
     func captures(in range: ByteRange) -> [TreeSitterCapture] {
         guard !range.isEmpty else {
             return []
@@ -139,7 +162,7 @@ extension TreeSitterLanguageLayer {
         let queryCursor = TreeSitterQueryCursor(query: highlightsQuery, node: tree.rootNode)
         queryCursor.setQueryRange(range)
         queryCursor.execute()
-        let captures = queryCursor.validCaptures(in: stringView)
+        let captures = queryCursor.validCaptures(in: queryStringView)
         let capturesInChildren = childLanguageLayerStore.allLayers.reduce(into: []) { $0 += $1.allValidCaptures(in: range) }
         return captures + capturesInChildren
     }
@@ -175,7 +198,7 @@ private extension TreeSitterLanguageLayer {
         injectionsQueryCursor.execute()
         let captures = injectionsQueryCursor.validCaptures(in: stringView)
         let injectedLanguages = injectedLanguages(from: captures)
-        let capturedIDs = injectedLanguages.map(\.id)
+        let capturedIDs = Set(injectedLanguages.map(\.id))
         let currentIDs = childLanguageLayerStore.allIDs
         for id in currentIDs {
             if !capturedIDs.contains(id) {
@@ -190,11 +213,39 @@ private extension TreeSitterLanguageLayer {
         let lineChangeSet = LineChangeSet()
         for injectedLanguage in injectedLanguages {
             if let childLanguageLayer = childLanguageLayer(withID: injectedLanguage.id, forLanguageNamed: injectedLanguage.languageName) {
-                let childLineChangeSet = childLanguageLayer.apply(edit, parsing: [injectedLanguage.textRange])
-                lineChangeSet.union(with: childLineChangeSet)
+                if !childLanguageLayer.reuseTree(for: injectedLanguage.textRange, after: edit) {
+                    let childLineChangeSet = childLanguageLayer.apply(edit, parsing: [injectedLanguage.textRange])
+                    lineChangeSet.union(with: childLineChangeSet)
+                }
             }
         }
         return lineChangeSet
+    }
+
+    private func reuseTree(for range: TreeSitterTextRange, after edit: TreeSitterInputEdit) -> Bool {
+        guard tree != nil, let includedRange,
+              let unchangedRange = includedRange.translatedOutsideEdit(edit),
+              unchangedRange.rawValue.start_byte == range.rawValue.start_byte,
+              unchangedRange.rawValue.end_byte == range.rawValue.end_byte,
+              unchangedRange.rawValue.start_point.row == range.rawValue.start_point.row,
+              unchangedRange.rawValue.start_point.column == range.rawValue.start_point.column,
+              unchangedRange.rawValue.end_point.row == range.rawValue.end_point.row,
+              unchangedRange.rawValue.end_point.column == range.rawValue.end_point.column else {
+            return false
+        }
+        updateUntouchedTree(after: edit)
+        return true
+    }
+
+    private func updateUntouchedTree(after edit: TreeSitterInputEdit) {
+        queryStringView = stringView
+        if let includedRange, edit.oldEndByte < includedRange.startByte {
+            tree?.apply(edit)
+            self.includedRange = includedRange.translatedOutsideEdit(edit)
+        }
+        for child in childLanguageLayerStore.allLayers {
+            child.updateUntouchedTree(after: edit)
+        }
     }
 
     private func injectedLanguages(from captures: [TreeSitterCapture]) -> [TreeSitterInjectedLanguage] {
@@ -209,7 +260,7 @@ extension TreeSitterLanguageLayer: TreeSitterInjectedLanguageMapperDelegate {
     func treeSitterInjectedLanguageMapper(_ mapper: TreeSitterInjectedLanguageMapper, textIn textRange: TreeSitterTextRange) -> String? {
         let byteRange = ByteRange(from: textRange.startByte, to: textRange.endByte)
         let range = NSRange(byteRange)
-        return stringView.substring(in: range)
+        return queryStringView.substring(in: range)
     }
 }
 
@@ -258,7 +309,7 @@ extension TreeSitterLanguageLayer: CustomDebugStringConvertible {
     }
 }
 
-private extension TreeSitterCapture {
+extension TreeSitterCapture {
     static func captureLayerSorting(_ lhs: TreeSitterCapture, _ rhs: TreeSitterCapture) -> Bool {
         // We sort the captures by three parameters:
         // 1. The location. Captures that are early in the text should be sorted first.

@@ -3,6 +3,8 @@ import Foundation
 extension UserDefaults {
     private enum Key {
         static let text = "RunestoneExample.text"
+        static let sampleLanguage = "RunestoneExample.sampleLanguage"
+        static let codeFoldingEnabled = "RunestoneExample.codeFoldingEnabled"
         static let showLineNumbers = "RunestoneExample.showLineNumbers"
         static let showInvisibleCharacters = "RunestoneExample.showInvisibleCharacters"
         static let wrapLines = "RunestoneExample.wrapLines"
@@ -11,6 +13,7 @@ extension UserDefaults {
         static let theme = "RunestoneExample.theme"
         static let isEditable = "RunestoneExample.isEditable"
         static let isSelectable = "RunestoneExample.isSelectable"
+        static let checkSpelling = "RunestoneExample.checkSpelling"
     }
 
     var text: String? {
@@ -19,6 +22,22 @@ extension UserDefaults {
         }
         set {
             set(newValue, forKey: Key.text)
+        }
+    }
+    var sampleLanguage: CodeSample.Language {
+        get {
+            string(forKey: Key.sampleLanguage).flatMap(CodeSample.Language.init(rawValue:)) ?? .javaScript
+        }
+        set {
+            set(newValue.rawValue, forKey: Key.sampleLanguage)
+        }
+    }
+    var codeFoldingEnabled: Bool {
+        get {
+            bool(forKey: Key.codeFoldingEnabled)
+        }
+        set {
+            set(newValue, forKey: Key.codeFoldingEnabled)
         }
     }
     var showLineNumbers: Bool {
@@ -92,14 +111,26 @@ extension UserDefaults {
         }
     }
 
+    var checkSpelling: Bool {
+        get {
+            bool(forKey: Key.checkSpelling)
+        }
+        set {
+            set(newValue, forKey: Key.checkSpelling)
+        }
+    }
+
     func registerDefaults() {
         register(defaults: [
             Key.text: CodeSample.default,
+            Key.sampleLanguage: CodeSample.Language.javaScript.rawValue,
+            Key.codeFoldingEnabled: false,
             Key.showLineNumbers: true,
             Key.wrapLines: false,
             Key.highlightSelectedLine: true,
             Key.isEditable: true,
-            Key.isSelectable: true
+            Key.isSelectable: true,
+            Key.checkSpelling: false
         ])
     }
 }

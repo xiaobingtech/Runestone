@@ -18,6 +18,9 @@ Runestone uses GitHub's [Tree-sitter](https://tree-sitter.github.io/tree-sitter/
 
 - Syntax highlighting.
 - Line numbers.
+- Code folding.
+- Spell checking.
+- Support for Apple's Writing Tools.
 - Highlight the selected line.
 - Show invisible characters (tabs, spaces and line breaks).
 - Insertion of character pairs, e.g. inserting the trailing quotation mark when inserting the leading.
@@ -39,6 +42,29 @@ Please refer to the [Getting Started](https://docs.runestone.app/documentation/r
 ## 📖 Documentation
 
 The documentation of all public types is available at [docs.runestone.app](https://docs.runestone.app). The documentation is generated from the Swift code using Apple's [DocC documentation compiler](https://developer.apple.com/documentation/docc).
+
+## 📱 Example App
+
+Open `Example/Example.xcodeproj` in Xcode and run the Example scheme to try Runestone. The **Folding Examples** submenu in the ellipsis menu contains JavaScript and Markdown documents with code folding enabled. You can turn folding on or off using the **Code Folding** setting in the same menu.
+
+To add folding to your own text view, set `textView.isCodeFoldingEnabled` to `true` and use a language with a folding query. Refer to the [Code Folding](Sources/Runestone/Documentation.docc/CodeFolding.md) article for more information.
+
+<details>
+<summary>Try a local document in Simulator</summary>
+
+To inspect a local UTF-8 document without saving it to preferences, install the
+Example and copy the file into its Documents directory:
+
+```sh
+device='<simulator UDID>'
+container=$(xcrun simctl get_app_container "$device" dk.simonbs.Example data)
+cp '/path/to/large-file.json' "$container/Documents/large-file.json"
+SIMCTL_CHILD_RUNESTONE_DOCUMENT=large-file.json xcrun simctl launch "$device" dk.simonbs.Example
+```
+
+When opening a document this way, the example shows **Jump to Top** and **Jump to Bottom** commands and enables line wrapping and line numbers. Set `RUNESTONE_WRAP_LINES=0` to turn off line wrapping. Use a `.md` or `.markdown` extension for Markdown documents.
+
+</details>
 
 ## 🏎 Performance
 
@@ -62,11 +88,19 @@ The Runestone framework is used by an app of the same name. The Runestone app is
 
 Pull requests with bugfixes and new features are much appreciated. I'll be happy to review them and merge them once they're ready, as long as they contain change that fit within the vision of Runestone and provide generally useful functionality.
 
-Clone the repository to get started working on the project. Note that Runestone depends on Tree-sitter through a submodule. This submodule must be cloned as well before Runestone can be built. Pass the `--recursive` option when cloning the repository to clone all submodules.
+Clone the repository to get started working on the project. Note that Runestone depends on Tree-sitter through a submodule. This submodule must be cloned as well before Runestone can be built. Pass the `--recurse-submodules` option when cloning the repository to clone all submodules.
 
 ```bash
-git clone --recursive git@github.com:simonbs/Runestone.git
+git clone --recurse-submodules https://github.com/simonbs/Runestone.git
 ```
+
+For an existing checkout, initialize or update the submodule to the commit recorded by Runestone:
+
+```bash
+git submodule update --init --recursive
+```
+
+SwiftPM initializes submodules automatically when resolving Runestone as a Git dependency. Downloaded GitHub source ZIP/tar archives omit submodule contents; use a Git checkout to build from source.
 
 ## ❤️ Acknowledgments
 

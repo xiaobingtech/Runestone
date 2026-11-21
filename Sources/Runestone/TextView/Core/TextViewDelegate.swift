@@ -2,6 +2,20 @@ import Foundation
 
 /// The methods for receiving editing-related messages for the text view.
 public protocol TextViewDelegate: AnyObject {
+    /// Writing Tools is about to present its panel, including the initial chooser before a session starts.
+    /// The text view is already marked presented. Use this to hide accessory UI while the panel is visible.
+    func textViewWritingToolsWillPresent(_ textView: TextView)
+    /// Writing Tools dismissed its panel, or the text view was removed from its window.
+    /// The text view is no longer marked presented. An active editing session is tracked independently.
+    func textViewWritingToolsDidDismiss(_ textView: TextView)
+
+    /// Writing Tools is beginning a session. Subsequent text changes may be provisional
+    /// until the user accepts or rejects them. The text view is already marked active.
+    func textViewWritingToolsWillBegin(_ textView: TextView)
+    /// Writing Tools finished or was stopped. The text view is no longer marked active.
+    /// Persist the current text here when deferring saves during a session.
+    func textViewWritingToolsDidEnd(_ textView: TextView)
+
     /// Asks the delegate whether to begin editing in the text view.
     /// - Parameter textView: The text view for which editing is about to begin.
     /// - Returns: `true` if editing should be initiated; otherwise, `false` to disallow editing.
@@ -41,6 +55,12 @@ public protocol TextViewDelegate: AnyObject {
     ///
     /// The text view calls this method whenever the user types a new character or deletes an existing character.
     func textView(_ textView: TextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool
+    /// Asks whether a misspelled word should be underlined and offered corrections.
+    ///
+    /// The range uses UTF-16 offsets in the document. Return `false` to exclude identifiers, URLs,
+    /// code blocks, or other non-prose text. The default is `true`. This method runs on the main thread;
+    /// keep it inexpensive. Call ``TextView/invalidateSpellChecking()`` if the policy changes.
+    func textView(_ textView: TextView, shouldCheckSpellingIn range: NSRange) -> Bool
     /// Asks the delegate whether to insert a character pair in the specified range.
     /// - Parameters:
     ///   - textView: The text view in which to insert the character pair.
@@ -104,6 +124,17 @@ public protocol TextViewDelegate: AnyObject {
 }
 
 public extension TextViewDelegate {
+    func textView(_ textView: TextView, shouldCheckSpellingIn range: NSRange) -> Bool {
+        true
+    }
+    func textViewWritingToolsWillPresent(_ textView: TextView) {}
+
+    func textViewWritingToolsDidDismiss(_ textView: TextView) {}
+
+    func textViewWritingToolsWillBegin(_ textView: TextView) {}
+
+    func textViewWritingToolsDidEnd(_ textView: TextView) {}
+
     func textViewShouldBeginEditing(_ textView: TextView) -> Bool {
         true
     }

@@ -60,6 +60,9 @@
 
 ### Gutter
 
+- ``isCodeFoldingEnabled``
+- ``isCodeFoldingHapticFeedbackEnabled``
+- <doc:CodeFolding>
 - ``gutterLeadingPadding``
 - ``gutterTrailingPadding``
 - ``gutterWidth``
@@ -128,6 +131,8 @@
 - ``autocapitalizationType``
 - ``autocorrectionType``
 - ``spellCheckingType``
+- ``spellCheckingLanguage``
+- ``invalidateSpellChecking()``
 - ``smartDashesType``
 - ``smartInsertDeleteType``
 - ``smartQuotesType``
