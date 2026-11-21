@@ -1,5 +1,5 @@
 import Runestone
-import RunestoneJavaScriptLanguage
+import RunestoneUITestJavaScriptLanguage
 import UIKit
 
 final class MainViewController: UIViewController {

@@ -34,13 +34,11 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		7216EAC62829A16C001B6D39 /* Themes */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = Themes; sourceTree = "<group>"; };
 		72417DC92B4E7315009EB32B /* SwiftUIMenuButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIMenuButton.swift; sourceTree = "<group>"; };
 		72417DCF2B4E7492009EB32B /* MenuSelectionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuSelectionHandler.swift; sourceTree = "<group>"; };
 		72417DD12B4E74A0009EB32B /* MenuItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuItem.swift; sourceTree = "<group>"; };
 		72417DD32B4E7645009EB32B /* MenuButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuButton.swift; sourceTree = "<group>"; };
 		7243F9BA282D73E9005AAABF /* Example.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Example.entitlements; sourceTree = "<group>"; };
-		72AC54762826B1F00037ED21 /* Languages */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = Languages; sourceTree = "<group>"; };
 		72AC54772826B23D0037ED21 /* Runestone */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = Runestone; sourceTree = "<group>"; };
 		72D2718129126F190070FA88 /* ProcessInfo+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProcessInfo+Helpers.swift"; sourceTree = "<group>"; };
 		AC480600279EE0180015F712 /* BasicCharacterPair.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BasicCharacterPair.swift; sourceTree = "<group>"; };
@@ -91,9 +89,7 @@
 		72AC54722826B0E40037ED21 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				72AC54762826B1F00037ED21 /* Languages */,
 				72AC54772826B23D0037ED21 /* Runestone */,
-				7216EAC62829A16C001B6D39 /* Themes */,
 			);
 			name = Packages;
 			sourceTree = "<group>";

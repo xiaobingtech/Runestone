@@ -39,7 +39,19 @@ Runestone uses GitHub's [Tree-sitter](https://tree-sitter.github.io/tree-sitter/
 
 Please refer to the [Getting Started](https://docs.runestone.app/documentation/runestone/gettingstarted) article in the documentation and the [Meet Runestone](https://docs.runestone.app/tutorials/meet-runestone) series of tutorials.
 
-In your iOS app's Xcode project, choose **File > Add Package Dependencies** and enter `https://github.com/xiaobingtech/Runestone.git`. Select a release tag that includes the bundled Tree-sitter runtime, or use the `main` branch until such a tag is available. Add the **Runestone** product to your app target.
+In your iOS app's Xcode project, choose **File > Add Package Dependencies** and enter `https://github.com/xiaobingtech/Runestone.git`. Select a release tag that includes the products you need, or use the `main` branch until such a tag is available.
+
+| Product | What it provides |
+| --- | --- |
+| `Runestone` | The editor |
+| `RunestoneJavaScriptLanguage` | `.javaScript`, `.jsx`, `.markdown`, and `.markdownInline` on `TreeSitterLanguage` |
+| `RunestoneOneDarkTheme` | `OneDarkTheme` |
+| `RunestonePlainTextTheme` | `PlainTextTheme` |
+| `RunestoneTomorrowTheme` | `TomorrowTheme` |
+| `RunestoneTomorrowNightTheme` | `TomorrowNightTheme` |
+| `RunestoneThemeCommon` | Shared theme types |
+
+When switching from a local checkout, remove the local Runestone, `Example/Languages`, and `Example/Themes` package references from your app project. Add the products you use from the remote Runestone package and keep the Swift imports for those product names.
 
 For Xcode Cloud, commit the app's Xcode project changes and its shared `Package.resolved`. Xcode Cloud uses that file to check out the recorded package revision. [Apple's Xcode Cloud dependency documentation](https://developer.apple.com/documentation/xcode/making-dependencies-available-to-xcode-cloud)
 
@@ -51,7 +63,7 @@ The documentation of all public types is available at [docs.runestone.app](https
 
 Open `Example/Example.xcodeproj` in Xcode and run the Example scheme to try Runestone. The **Folding Examples** submenu in the ellipsis menu contains JavaScript and Markdown documents with code folding enabled. You can turn folding on or off using the **Code Folding** setting in the same menu.
 
-The `Example/Runestone` symlink gives the local package a stable SwiftPM identity, including in Xcode Cloud checkouts. This lets the example use the current checkout to satisfy TreeSitterLanguages' Runestone dependency.
+The example uses the editor, languages, and themes from the root Swift package in the current checkout.
 
 To add folding to your own text view, set `textView.isCodeFoldingEnabled` to `true` and use a language with a folding query. Refer to the [Code Folding](Sources/Runestone/Documentation.docc/CodeFolding.md) article for more information.
 
@@ -105,6 +117,10 @@ git clone https://github.com/xiaobingtech/Runestone.git
 Runestone bundles the Tree-sitter 0.27.1 C runtime from upstream commit `10eb5ac119eec9cb4267a8e035066473983f5f3a`. `Sources/TreeSitter` contains upstream's `lib/include`, `lib/src`, and `LICENSE`. [Tree-sitter v0.27.1](https://github.com/tree-sitter/tree-sitter/tree/v0.27.1)
 
 When updating the runtime, refresh those paths together and verify the Runestone simulator tests. `TreeSitterSupport.c` uses the runtime's private structures, so review its compatibility with the new version. Preserve the upstream and Unicode license notices.
+
+### Bundled grammars
+
+The JavaScript, Markdown, and Markdown-inline grammar sources and editor queries come from TreeSitterLanguages revision `12e38d632d845ba6e94eff02de53418963a98506`. The C parser and scanner symbols use a Runestone prefix so they can coexist with other copies of the grammars. License notices are in `Sources/RunestoneGrammars/Licenses`. [TreeSitterLanguages source provenance](https://github.com/simonbs/TreeSitterLanguages/blob/12e38d632d845ba6e94eff02de53418963a98506/LANGUAGE_SOURCES.md)
 
 ## ❤️ Acknowledgments
 

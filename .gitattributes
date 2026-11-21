@@ -1,5 +1,5 @@
 Sources/TreeSitter/** linguist-vendored
+Sources/RunestoneGrammars/** linguist-vendored
 Sources/TestTreeSitterLanguages/** linguist-vendored
 Sources/Runestone/Documentation.docc/** linguist-documentation
-Example/Languages/Sources/** linguist-vendored
 UITests/Languages/Sources/** linguist-vendored

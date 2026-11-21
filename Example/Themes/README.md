@@ -1,10 +1,10 @@
 # Themes
 
-Contains the themes used by the example project. The following themes are included:
+The example project uses these themes from the root Runestone package.
 
 - One Dark
 - Plain Text
 - Tomorrow
 - Tomorrow Night
 
-The RunestoneThemeCommon package includes the types used across all of the themes and the example project.
+The `RunestoneThemeCommon` product provides the shared theme types. Apps can use these products from the Runestone Git URL with the same Swift imports.

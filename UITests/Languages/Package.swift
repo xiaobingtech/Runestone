@@ -7,13 +7,18 @@ let package = Package(
     name: "Languages",
     platforms: [.iOS(.v14)],
     products: [
-        .library(name: "RunestoneJavaScriptLanguage", targets: ["RunestoneJavaScriptLanguage"])
+        .library(name: "RunestoneUITestJavaScriptLanguage", targets: ["RunestoneUITestJavaScriptLanguage"])
     ],
     dependencies: [
         .package(name: "Runestone", path: "../..")
     ],
     targets: [
-        .target(name: "RunestoneJavaScriptLanguage", dependencies: ["TreeSitterJavaScript", "Runestone"], resources: [.copy("queries")]),
+        .target(
+            name: "RunestoneUITestJavaScriptLanguage",
+            dependencies: ["TreeSitterJavaScript", "Runestone"],
+            path: "Sources/RunestoneJavaScriptLanguage",
+            resources: [.copy("queries")]
+        ),
         .target(name: "TreeSitterJavaScript", cSettings: [.headerSearchPath("src")])
     ]
 )

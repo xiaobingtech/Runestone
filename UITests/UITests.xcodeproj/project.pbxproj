@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		F15CE1102EF0000000000001 /* SpellCheckingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15CE1102EF0000000000002 /* SpellCheckingTests.swift */; };
-		7216EAC82829A3C6001B6D39 /* RunestoneJavaScriptLanguage in Frameworks */ = {isa = PBXBuildFile; productRef = 7216EAC72829A3C6001B6D39 /* RunestoneJavaScriptLanguage */; };
+		7216EAC82829A3C6001B6D39 /* RunestoneUITestJavaScriptLanguage in Frameworks */ = {isa = PBXBuildFile; productRef = 7216EAC72829A3C6001B6D39 /* RunestoneUITestJavaScriptLanguage */; };
 		72190768291818BD0054847B /* ChineseInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72190767291818BD0054847B /* ChineseInputTests.swift */; };
 		7244DB2C290BFDEA007C99B5 /* KoreanInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7244DB2B290BFDEA007C99B5 /* KoreanInputTests.swift */; };
 		729ECE472983E82A0049AFF5 /* ProcessInfo+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 729ECE462983E82A0049AFF5 /* ProcessInfo+Helpers.swift */; };
@@ -68,7 +68,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				72AC54812826B2A90037ED21 /* Runestone in Frameworks */,
-				7216EAC82829A3C6001B6D39 /* RunestoneJavaScriptLanguage in Frameworks */,
+				7216EAC82829A3C6001B6D39 /* RunestoneUITestJavaScriptLanguage in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -185,7 +185,7 @@
 			name = Host;
 			packageProductDependencies = (
 				72AC54802826B2A90037ED21 /* Runestone */,
-				7216EAC72829A3C6001B6D39 /* RunestoneJavaScriptLanguage */,
+				7216EAC72829A3C6001B6D39 /* RunestoneUITestJavaScriptLanguage */,
 			);
 			productName = Example;
 			productReference = ACFDF4AD27983BAA00059A1B /* Host.app */;
@@ -566,9 +566,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		7216EAC72829A3C6001B6D39 /* RunestoneJavaScriptLanguage */ = {
+		7216EAC72829A3C6001B6D39 /* RunestoneUITestJavaScriptLanguage */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = RunestoneJavaScriptLanguage;
+			productName = RunestoneUITestJavaScriptLanguage;
 		};
 		72AC54802826B2A90037ED21 /* Runestone */ = {
 			isa = XCSwiftPackageProductDependency;

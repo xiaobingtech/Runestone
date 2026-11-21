@@ -2,7 +2,7 @@ import Runestone
 
 public extension TreeSitterIndentationScopes {
     static var javaScript: TreeSitterIndentationScopes {
-        TreeSitterIndentationScopes(
+        return TreeSitterIndentationScopes(
             indent: [
                 "array",
                 "object",

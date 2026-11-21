@@ -3,7 +3,7 @@ extern "C" {
 #endif
 
 typedef struct TSLanguage TSLanguage;
-const TSLanguage *tree_sitter_javascript(void);
+const TSLanguage *runestone_tree_sitter_javascript(void);
 
 #ifdef __cplusplus
 }
