@@ -23,7 +23,7 @@ let package = Package(
         ]),
         .target(
             name: "TreeSitter",
-            path: "tree-sitter/lib",
+            exclude: ["LICENSE"],
             sources: ["src/lib.c"],
             publicHeadersPath: "include",
             cSettings: [.headerSearchPath("src"), .define("_DARWIN_C_SOURCE")]

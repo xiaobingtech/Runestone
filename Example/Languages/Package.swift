@@ -8,7 +8,7 @@ let package = Package(
         .library(name: "RunestoneJavaScriptLanguage", targets: ["RunestoneJavaScriptLanguage"])
     ],
     dependencies: [
-        .package(name: "Runestone", path: "../.."),
+        .package(name: "Runestone", path: "../Runestone"),
         .package(url: "https://github.com/simonbs/TreeSitterLanguages.git", revision: "12e38d632d845ba6e94eff02de53418963a98506")
     ],
     targets: [

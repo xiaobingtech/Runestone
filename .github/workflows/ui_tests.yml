@@ -5,8 +5,7 @@
 # iOS 15 simulator, which is used in this workflow.
 # 
 # This workflow retains its historical iOS 15 runner setup, which is not available
-# on the current macOS runners. Tree-sitter now builds as a local C target, so the
-# former Swift tools version requirement from its upstream manifest no longer applies.
+# on the current macOS runners.
 # ---
 name: UI Tests
 on:
@@ -16,9 +15,7 @@ on:
       - main
     paths:
       - '.github/workflows/ui_tests.yml'
-      - '.gitmodules'
       - 'Package.swift'
-      - 'tree-sitter'
       - 'Sources/**'
       - '!Sources/Runestone/Documentation.docc/**'
       - 'UITests/HostUITests/**'
@@ -38,8 +35,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-        with:
-          submodules: recursive
       - name: Disable "Use the Same Keyboard Language as macOS"
         run: defaults write com.apple.iphonesimulator EnableKeyboardSync -bool NO
       - name: Create Simulator
@@ -102,8 +97,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-        with:
-          submodules: recursive
       - name: Disable "Use the Same Keyboard Language as macOS"
         run: defaults write com.apple.iphonesimulator EnableKeyboardSync -bool NO
       - name: Create Simulator

@@ -1,9 +1,9 @@
 #include "include/TreeSitterSupport.h"
 
 // This proof deliberately uses the private structures of the pinned Tree-sitter
-// submodule. Keep it conservative when updating that dependency. It neither
+// runtime. Keep it conservative when updating that dependency. It neither
 // changes trees nor replaces Tree-sitter's algorithm for structural changes.
-#include "../../tree-sitter/lib/src/tree.h"
+#include "../TreeSitter/src/tree.h"
 
 typedef struct {
     Subtree old_tree;

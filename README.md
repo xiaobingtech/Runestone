@@ -39,6 +39,10 @@ Runestone uses GitHub's [Tree-sitter](https://tree-sitter.github.io/tree-sitter/
 
 Please refer to the [Getting Started](https://docs.runestone.app/documentation/runestone/gettingstarted) article in the documentation and the [Meet Runestone](https://docs.runestone.app/tutorials/meet-runestone) series of tutorials.
 
+In your iOS app's Xcode project, choose **File > Add Package Dependencies** and enter `https://github.com/xiaobingtech/Runestone.git`. Select a release tag that includes the bundled Tree-sitter runtime, or use the `main` branch until such a tag is available. Add the **Runestone** product to your app target.
+
+For Xcode Cloud, commit the app's Xcode project changes and its shared `Package.resolved`. Xcode Cloud uses that file to check out the recorded package revision. [Apple's Xcode Cloud dependency documentation](https://developer.apple.com/documentation/xcode/making-dependencies-available-to-xcode-cloud)
+
 ## 📖 Documentation
 
 The documentation of all public types is available at [docs.runestone.app](https://docs.runestone.app). The documentation is generated from the Swift code using Apple's [DocC documentation compiler](https://developer.apple.com/documentation/docc).
@@ -46,6 +50,8 @@ The documentation of all public types is available at [docs.runestone.app](https
 ## 📱 Example App
 
 Open `Example/Example.xcodeproj` in Xcode and run the Example scheme to try Runestone. The **Folding Examples** submenu in the ellipsis menu contains JavaScript and Markdown documents with code folding enabled. You can turn folding on or off using the **Code Folding** setting in the same menu.
+
+The `Example/Runestone` symlink gives the local package a stable SwiftPM identity, including in Xcode Cloud checkouts. This lets the example use the current checkout to satisfy TreeSitterLanguages' Runestone dependency.
 
 To add folding to your own text view, set `textView.isCodeFoldingEnabled` to `true` and use a language with a folding query. Refer to the [Code Folding](Sources/Runestone/Documentation.docc/CodeFolding.md) article for more information.
 
@@ -88,19 +94,17 @@ The Runestone framework is used by an app of the same name. The Runestone app is
 
 Pull requests with bugfixes and new features are much appreciated. I'll be happy to review them and merge them once they're ready, as long as they contain change that fit within the vision of Runestone and provide generally useful functionality.
 
-Clone the repository to get started working on the project. Note that Runestone depends on Tree-sitter through a submodule. This submodule must be cloned as well before Runestone can be built. Pass the `--recurse-submodules` option when cloning the repository to clone all submodules.
+Clone the repository to get started working on the project.
 
 ```bash
-git clone --recurse-submodules https://github.com/simonbs/Runestone.git
+git clone https://github.com/xiaobingtech/Runestone.git
 ```
 
-For an existing checkout, initialize or update the submodule to the commit recorded by Runestone:
+### Tree-sitter runtime
 
-```bash
-git submodule update --init --recursive
-```
+Runestone bundles the Tree-sitter 0.27.1 C runtime from upstream commit `10eb5ac119eec9cb4267a8e035066473983f5f3a`. `Sources/TreeSitter` contains upstream's `lib/include`, `lib/src`, and `LICENSE`. [Tree-sitter v0.27.1](https://github.com/tree-sitter/tree-sitter/tree/v0.27.1)
 
-SwiftPM initializes submodules automatically when resolving Runestone as a Git dependency. Downloaded GitHub source ZIP/tar archives omit submodule contents; use a Git checkout to build from source.
+When updating the runtime, refresh those paths together and verify the Runestone simulator tests. `TreeSitterSupport.c` uses the runtime's private structures, so review its compatibility with the new version. Preserve the upstream and Unicode license notices.
 
 ## ❤️ Acknowledgments
 

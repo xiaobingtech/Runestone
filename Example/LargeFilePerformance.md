@@ -61,7 +61,6 @@ the initial viewport.
 With Xcode, `xcsift`, and an installed iOS simulator, run from the repository root:
 
 ```sh
-git submodule update --init --recursive
 Scripts/run-large-file-performance.sh '<simulator UDID>' /tmp/runestone-performance
 ```
 

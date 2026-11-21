@@ -10,7 +10,7 @@ let package = Package(
         .library(name: "RunestoneJavaScriptLanguage", targets: ["RunestoneJavaScriptLanguage"])
     ],
     dependencies: [
-        .package(path: "../Runestone")
+        .package(name: "Runestone", path: "../..")
     ],
     targets: [
         .target(name: "RunestoneJavaScriptLanguage", dependencies: ["TreeSitterJavaScript", "Runestone"], resources: [.copy("queries")]),

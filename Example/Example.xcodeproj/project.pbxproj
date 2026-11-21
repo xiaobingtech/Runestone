@@ -41,7 +41,7 @@
 		72417DD32B4E7645009EB32B /* MenuButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuButton.swift; sourceTree = "<group>"; };
 		7243F9BA282D73E9005AAABF /* Example.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Example.entitlements; sourceTree = "<group>"; };
 		72AC54762826B1F00037ED21 /* Languages */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = Languages; sourceTree = "<group>"; };
-		72AC54772826B23D0037ED21 /* Runestone */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = Runestone; path = ..; sourceTree = "<group>"; };
+		72AC54772826B23D0037ED21 /* Runestone */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = Runestone; sourceTree = "<group>"; };
 		72D2718129126F190070FA88 /* ProcessInfo+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProcessInfo+Helpers.swift"; sourceTree = "<group>"; };
 		AC480600279EE0180015F712 /* BasicCharacterPair.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BasicCharacterPair.swift; sourceTree = "<group>"; };
 		AC5F0252279C74A1001D1E43 /* UserDefaults+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+Helpers.swift"; sourceTree = "<group>"; };

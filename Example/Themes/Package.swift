@@ -14,7 +14,7 @@ let package = Package(
         .library(name: "RunestoneThemeCommon", targets: ["RunestoneThemeCommon"])
     ],
     dependencies: [
-        .package(name: "Runestone", path: "../..")
+        .package(name: "Runestone", path: "../Runestone")
     ],
     targets: [
         .target(name: "RunestoneTomorrowTheme", dependencies: ["Runestone", "RunestoneThemeCommon"], resources: [.process("Colors.xcassets")]),
